@@ -97,21 +97,25 @@ defmodule HNScraper do
 
   # insert a word from a title into the "Words" table
   def insert_word_into_db(word, post_id) do
-    HNScraper.Repo.insert %Words{post_id: post_id, word: word}
+    HNScraper.Repo.insert! %Words{post_id: post_id, word: word}
     word
   end
 
   # THIS IS NOT CURRENTLY WORKING ~~~~~~~~~~~~~~~~~~~~~~~~~
   def increment_word_count(word) do
-    # if (word_in_db?(word)) do
-    #   query = from(row in Counts, where: row.word == ^word, select: row.count)
-    #   # current_count = hd(HNScraper.Repo.all(query))
+    if (word_in_db?(word)) do
+      word_id = from(row in Counts, where: row.word == ^word, select: row.id)
+      |> HNScraper.Repo.all
+      |> hd
 
-    #   # query = from(row in Counts) |> where([row], row.word == ^word) |> update([row], inc: [count: 1])
-    #   query = from(row in Counts, where: row.word == ^word, update: [set: [count: ^(current_count + 1)]])
-    # end
-    if not word_in_db?(word) do
-      HNScraper.Repo.insert %Counts{word: word, count: 100}
+      # query = from(row in Counts) |> where([row], row.word == ^word) |> update([row], inc: [count: 1])
+      # query = from(row in Counts, where: row.word == ^word, update: [set: [count: ^(current_count + 1)]])
+      # HNScraper.Repo.all(query)
+      c = HNScraper.Repo.get!(Counts, word_id)
+      c = %{c | count: c.count+1}
+      HNScraper.Repo.update!(c)
+    else
+      HNScraper.Repo.insert! %Counts{word: word, count: 1}
     end
     word
   end
@@ -120,7 +124,7 @@ defmodule HNScraper do
   def insert_data_into_db(post) do
     post_id = post[:id]
     Enum.map(post[:title], &(increment_word_count(&1)))
-    HNScraper.Repo.insert %Posts{id: post_id, url: post[:url]}
+    HNScraper.Repo.insert! %Posts{id: post_id, url: post[:url]}
     Enum.map(post[:title], &(insert_word_into_db(&1, post_id)))
     post
   end
@@ -147,5 +151,10 @@ defmodule HNScraper do
     |> Enum.map(&(create_post_map(&1)))
     |> Enum.map(&(insert_data_into_db(&1)))
   end
-  
+
+  def start_scraping() do
+    HNAPI.start
+    HNScraper.Repo.start_link
+    Quantum.add_job("*/2 * * * *", fn -> scrape() end)
+  end
 end

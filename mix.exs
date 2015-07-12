@@ -12,14 +12,15 @@ defmodule HNScraper.Mixfile do
 
   def application do
     [mod: {HNScraper.App, []},
-     applications: [:logger, :postgrex, :ecto]]
+     applications: [:logger, :postgrex, :ecto, :quantum]]
   end
 
   defp deps do
     [
       {:hnapi, git: "https://github.com/SaintDako/hnAPI-elixir.git", branch: "master"},
       {:postgrex, ">= 0.0.0"},
-      {:ecto, "~> 0.9.0"}
+      {:ecto, "~> 0.13.0"},
+      {:quantum, ">= 1.2.4"}
     ]
   end
 end
