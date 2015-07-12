@@ -143,7 +143,7 @@ defmodule HNScraper do
   end
 
   def scrape() do
-    HNAPI.top_stories_by_id("story", 5)
+    HNAPI.top_stories_by_id("story", 500)
     |> Enum.filter(&(not post_in_db?(&1)))
     |> Enum.map(&(HNAPI.get_item(&1)))
     |> Enum.filter(&(not is_ask?(&1)))
@@ -155,6 +155,6 @@ defmodule HNScraper do
   def start_scraping() do
     HNAPI.start
     HNScraper.Repo.start_link
-    Quantum.add_job("*/2 * * * *", fn -> scrape() end)
+    Quantum.add_job("0 * * * *", fn -> scrape() end)   # hourly
   end
 end
