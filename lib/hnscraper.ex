@@ -46,12 +46,28 @@ end
 
 # string helpers
 defmodule HNScraper.Str do
+
+  # replace all punctuation except underscore and apostrophes with spaces
   def replace_punc(s) do
     Regex.replace(~r/[^a-zA-Z_']/, s, " ")
   end
 
+  # remove multiple spaces
   def remove_multiple_spaces(s) do
     Regex.replace(~r/ {2,}/, s, " ")
+  end
+
+  # remove all spaces
+  def remove_all_spaces(s) do
+    Regex.replace(~r/ +/, s, "")
+  end
+
+  # format a single word
+  def format_word(word) do
+    word
+    |> replace_punc
+    |> remove_all_spaces
+    |> String.downcase
   end
 
   def format_title(title) do
@@ -69,7 +85,6 @@ defmodule HNScraper do
   HNAPI.start
   import Ecto.Query
 
-  # DATABASE HELPERS
   # check if word exists in the Counts table (not the Words table, because the
   # Enum.count call will be faster this way. #yolo)
   def word_in_db?(word) do
@@ -101,16 +116,14 @@ defmodule HNScraper do
     word
   end
 
-  # THIS IS NOT CURRENTLY WORKING ~~~~~~~~~~~~~~~~~~~~~~~~~
+  # increment the count of a given word
+  # set the count to 1 if the word is not in the DB yet
   def increment_word_count(word) do
     if (word_in_db?(word)) do
       word_id = from(row in Counts, where: row.word == ^word, select: row.id)
       |> HNScraper.Repo.all
       |> hd
 
-      # query = from(row in Counts) |> where([row], row.word == ^word) |> update([row], inc: [count: 1])
-      # query = from(row in Counts, where: row.word == ^word, update: [set: [count: ^(current_count + 1)]])
-      # HNScraper.Repo.all(query)
       c = HNScraper.Repo.get!(Counts, word_id)
       c = %{c | count: c.count+1}
       HNScraper.Repo.update!(c)
@@ -118,6 +131,16 @@ defmodule HNScraper do
       HNScraper.Repo.insert! %Counts{word: word, count: 1}
     end
     word
+  end
+
+  # get all post IDs with given word in title
+  # format the word if format? is true
+  def get_posts_with_word(word, format? \\ true) do
+    if format? do
+      word = HNScraper.Str.format_word(word)
+    end
+    from(row in Words, where: row.word == ^word, select: row.post_id)
+    |> HNScraper.Repo.all
   end
 
   # insert all stuff into the database!
@@ -134,6 +157,8 @@ defmodule HNScraper do
     Regex.match?(~r/^Ask HN:/, post["title"])
   end
 
+  # given all of the details about a post, extract the title, url and ID
+  # and put them into a map
   def create_post_map(post) do
     %{
       :title => HNScraper.Str.format_title(post["title"]),   # a list!
@@ -142,8 +167,11 @@ defmodule HNScraper do
     }
   end
 
-  def scrape() do
-    HNAPI.top_stories_by_id("story", 500)
+  # scrape the top top_posts_amount (default to 500) by ID, remove posts whose ID
+  # is already in DB, get their full details, remove asks, remove posts whose URL
+  # is already in DB, get rid of info we don't care about, put stuff into DB.
+  def scrape(top_posts_amount \\ 500) do
+    HNAPI.top_stories_by_id("story", top_posts_amount)
     |> Enum.filter(&(not post_in_db?(&1)))
     |> Enum.map(&(HNAPI.get_item(&1)))
     |> Enum.filter(&(not is_ask?(&1)))
@@ -152,9 +180,11 @@ defmodule HNScraper do
     |> Enum.map(&(insert_data_into_db(&1)))
   end
 
-  def start_scraping() do
+  # run the scraper at the given cronjob time, scraping the number of posts specified
+  # by top_posts_amount
+  def start_scraping(crontime \\ "0 * * * *", top_posts_amount \\ 500) do
     HNAPI.start
     HNScraper.Repo.start_link
-    Quantum.add_job("0 * * * *", fn -> scrape() end)   # hourly
+    Quantum.add_job(crontime, fn -> scrape(top_posts_amount) end)   # hourly
   end
 end

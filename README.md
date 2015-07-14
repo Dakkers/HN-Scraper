@@ -44,9 +44,12 @@ The Postgres tables are described below. I'm sorry if my schemas suck, I'm not i
 (where `word` is unique; `count` should be `not null` too...)
 
 ## Changing some options
-To change how frequently the scraping happens, change `Quantum.add_job(...)` inside the `HNScraper.start_scraping` function.
+There are options that can be changed:
 
-To change the number of top posts that are requested from the API (to a max of 500), change the number in `HNAPI.top_stories_by_id(...)` inside the `HNScraper.scrape` function.
+- how often the scraping happens (default is hourly, max is every minute)
+- number of posts scraped (default is 500, max is 500)
+
+Both of these options are passed to `HNScraper.start_scraping(crontime, top_posts_amount)`. `crontime` is a string and `top_posts_amount` is an integer. The format of `crontime` is the standard format for cron jobs. See the [Quantum module](https://github.com/c-rack/quantum-elixir) for all possible configurations.
 
 ## License
 GPL, I guess.
